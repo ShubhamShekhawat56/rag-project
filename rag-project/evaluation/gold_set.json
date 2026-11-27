@@ -1,0 +1,12 @@
+{
+  "document": "data/sample.md",
+  "note": "expect_any = at least one of these strings must appear in the evidence chunk / answer. A null value means the question is deliberately unanswerable from the document.",
+  "questions": [
+    {"q": "How many days of paid annual leave does an employee get per year?", "a": "24 days", "expect_any": ["24 days"]},
+    {"q": "How many days per week can employees work remotely, and what are the core hours?", "a": "Up to 3 days per week; core hours are 11:00 to 16:00 IST", "expect_any": ["3 days per week", "11:00 to 16:00"]},
+    {"q": "Within how many hours must a security incident be reported?", "a": "Within 2 hours", "expect_any": ["within 2 hours"]},
+    {"q": "What is the yearly learning budget per employee?", "a": "40,000 rupees", "expect_any": ["40,000 rupees"]},
+    {"q": "How much parental leave does the secondary caregiver get?", "a": "4 weeks of fully paid leave", "expect_any": ["4 weeks"]},
+    {"q": "What is the company's stock option vesting schedule?", "a": null, "expect_any": null}
+  ]
+}

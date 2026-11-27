@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini RAG: ask your documents</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%91%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0F4; --panel:#FFFFFF; --ink:#16202E; --muted:#5B6678; --line:#D5DBE5;
+  --accent:#0E6B66; --accent-ink:#FFFFFF; --cite:#B4530A; --cite-bg:#FDF0E3; --warn:#8A1F1F; --warn-bg:#FBEAEA;
+  --ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --read:"Newsreader",Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#10151D;--panel:#182029;--ink:#E7ECF3;--muted:#9AA6B8;--line:#2B3644;--accent:#3BB5AC;--accent-ink:#06201E;--cite:#F2A55C;--cite-bg:#2E2216;--warn:#F2A0A0;--warn-bg:#331A1A}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:15px;line-height:1.5}
+header{padding:20px clamp(16px,4vw,40px) 4px}
+h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+header p{margin:2px 0 0;color:var(--muted)}
+.grid{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:20px;padding:16px clamp(16px,4vw,40px) 40px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+h2{margin:0 0 12px;font-size:16px;font-weight:600}
+label{display:block;font-weight:500;margin:12px 0 4px}
+input[type=text],textarea{width:100%;font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:6px;padding:9px 10px}
+textarea{resize:vertical;min-height:130px}
+input[type=file]{font:inherit;width:100%;color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--ink);padding:8px 14px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.55;cursor:progress}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.hint{color:var(--muted);font-size:13px;margin:4px 0 0}
+ul.docs{list-style:none;margin:16px 0 0;padding:0;border-top:1px solid var(--line)}
+ul.docs li{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+ul.docs span:last-child{color:var(--muted);white-space:nowrap}
+.linkbtn{border:0;padding:0;margin-top:10px;color:var(--muted);text-decoration:underline;font-size:13px}
+.ask{display:flex;gap:8px}
+.ask textarea{min-height:64px}
+.ask button{align-self:flex-start}
+#status{margin-top:14px;padding:10px 12px;border-radius:6px;display:none;font-size:14px}
+#status.err{display:block;background:var(--warn-bg);color:var(--warn)}
+#status.ok{display:block;background:var(--cite-bg);color:var(--ink)}
+.empty{color:var(--muted);margin:22px 0 4px}
+.answer{font-family:var(--read);font-size:19px;line-height:1.65;max-width:68ch;margin:20px 0 0}
+.answer p{margin:0 0 .8em}
+.answer.none{font-style:italic;color:var(--muted)}
+.chip{font:600 12px var(--ui);color:var(--cite);background:var(--cite-bg);border:1px solid var(--cite);border-radius:4px;padding:0 5px;margin:0 1px;vertical-align:2px}
+.stats{display:flex;flex-wrap:wrap;gap:6px 18px;margin:16px 0 0;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}
+.stats b{color:var(--ink);font-weight:600}
+.sources h3{margin:20px 0 8px;font-size:15px}
+.src{border:1px solid var(--line);border-left-width:4px;border-radius:6px;padding:10px 12px;margin-bottom:10px}
+.src.cited{border-left-color:var(--cite)}
+.src.flash{background:var(--cite-bg)}
+.src header{padding:0;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.src .meta{color:var(--muted);font-size:13px}
+.src p{margin:8px 0 0;font-family:var(--read);font-size:16px;line-height:1.55;white-space:pre-wrap;max-height:4.7em;overflow:hidden}
+.src.open p{max-height:none}
+.src button.more{border:0;padding:0;margin-top:6px;color:var(--accent);font-size:13px}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}}
+footer{padding:0 clamp(16px,4vw,40px) 28px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mini RAG</h1>
+  <p>Add text or a file, then ask questions. Answers cite the passages they came from.</p>
+</header>
+
+<main class="grid">
+  <section aria-labelledby="lib-h">
+    <h2 id="lib-h">Your documents</h2>
+    <label for="title">Title (optional)</label>
+    <input id="title" type="text" maxlength="120" placeholder="e.g. Travel policy">
+    <label for="text">Paste text</label>
+    <textarea id="text" placeholder="Paste the document text here"></textarea>
+    <label for="file">Or upload a file</label>
+    <input id="file" type="file" accept=".txt,.md,.pdf">
+    <p class="hint">.txt, .md or .pdf, up to 5 MB. Files are chunked, embedded and stored in a hosted vector database.</p>
+    <div class="row">
+      <button id="add" class="primary">Add to index</button>
+      <button id="sample">Use sample document</button>
+    </div>
+    <ul id="docs" class="docs" aria-live="polite"></ul>
+    <button id="clear" class="linkbtn" hidden>Remove all my documents</button>
+  </section>
+
+  <section aria-labelledby="ask-h">
+    <h2 id="ask-h">Ask a question</h2>
+    <div class="ask">
+      <textarea id="q" aria-label="Your question" placeholder="What does the document say about…?"></textarea>
+      <button id="go" class="primary">Ask</button>
+    </div>
+    <div id="status" role="status"></div>
+    <div id="result"><p class="empty">Add a document on the left, or load the sample, then ask your first question.</p></div>
+  </section>
+</main>
+<footer id="foot"></footer>
+
+<script>
+const $ = s => document.querySelector(s);
+let ns = null;
+try { ns = localStorage.getItem('rag_ns'); } catch (e) {}
+if (!ns || !/^[A-Za-z0-9_-]{6,64}$/.test(ns)) {
+  ns = 's' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4);
+  try { localStorage.setItem('rag_ns', ns); } catch (e) {}
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sec = ms => {
+  const n = Number(ms || 0);
+  return n >= 1000 ? (n / 1000).toFixed(1) + ' s' : n + ' ms';
+};
+
+function say(msg, kind) {
+  const el = $('#status');
+  el.className = msg ? kind : '';
+  el.textContent = msg || '';
+}
+function busy(btn, on, label) {
+  btn.disabled = on;
+  btn.dataset.label = btn.dataset.label || btn.textContent;
+  btn.innerHTML = on ? '<span class="spinner"></span>' + esc(label) : esc(btn.dataset.label);
+}
+async function api(path, opts) {
+  let r;
+  try { r = await fetch(path, opts); } catch (e) { throw new Error('Cannot reach the server. Check your connection and try again.'); }
+  let data = {};
+  try { data = await r.json(); } catch (e) {}
+  if (!r.ok) {
+    const msg = typeof data.detail === 'string'
+      ? data.detail
+      : Array.isArray(data.detail) && data.detail[0]?.msg
+        ? data.detail[0].msg
+        : 'Something went wrong (' + r.status + ').';
+    throw new Error(msg);
+  }
+  return data;
+}
+
+async function refreshDocs() {
+  try {
+    const { documents = [] } = await api('/api/documents?namespace=' + encodeURIComponent(ns));
+    $('#docs').innerHTML = documents.map(d => `<li><span>${esc(d.title)}</span><span>${d.chunks} chunk${d.chunks === 1 ? '' : 's'}</span></li>`).join('');
+    $('#clear').hidden = !documents.length;
+  } catch (e) { /* listing is a convenience; ingest/query report their own errors */ }
+}
+
+async function ingest(form) {
+  say('');
+  form.append('namespace', ns);
+  const d = await api('/api/ingest', { method: 'POST', body: form });
+  say(`Added "${d.title}": ${d.chunks} chunk${d.chunks === 1 ? '' : 's'} indexed in ${sec(d.ms)}.`, 'ok');
+  await refreshDocs();
+}
+
+$('#add').onclick = async () => {
+  const f = new FormData();
+  f.append('title', $('#title').value);
+  f.append('text', $('#text').value);
+  if ($('#file').files[0]) f.append('file', $('#file').files[0]);
+  busy($('#add'), true, 'Indexing');
+  try { await ingest(f); $('#text').value = ''; $('#file').value = ''; $('#title').value = ''; }
+  catch (e) { say(e.message, 'err'); }
+  busy($('#add'), false);
+};
+
+$('#sample').onclick = async () => {
+  busy($('#sample'), true, 'Loading');
+  try {
+    const s = await api('/api/sample');
+    const f = new FormData(); f.append('title', s.title); f.append('text', s.text);
+    await ingest(f);
+    $('#q').value = $('#q').value || 'How many days of paid annual leave do employees get?';
+  } catch (e) { say(e.message, 'err'); }
+  busy($('#sample'), false);
+};
+
+$('#clear').onclick = async () => {
+  const btn = $('#clear');
+  btn.disabled = true;
+  try {
+    await api('/api/documents?namespace=' + encodeURIComponent(ns), { method: 'DELETE' });
+    say('All your documents were removed.', 'ok');
+    await refreshDocs();
+  } catch (e) { say(e.message, 'err'); }
+  finally { btn.disabled = false; }
+};
+
+function renderAnswer(text) {
+  return String(text || '').split(/\n{2,}/).map(p => '<p>' + esc(p).replace(/\[(\d+)\]/g, '<button class="chip" data-id="$1" aria-label="Show source $1">$1</button>').replace(/\n/g, '<br>') + '</p>').join('');
+}
+
+function render(r) {
+  const t = r.timings || {}, u = r.usage || {}, cited = Array.isArray(r.cited) ? r.cited : [], sources = Array.isArray(r.sources) ? r.sources : [];
+  const parts = [['Total', t.total_ms], ['Embed', t.embed_ms], ['Search', t.search_ms], ['Rerank', t.rerank_ms], ['Answer', t.llm_ms]]
+    .filter(p => p[1] != null).map(p => `<span>${p[0]} <b>${sec(p[1])}</b></span>`).join('');
+  const tokens = Number(u.embed_tokens || 0) + Number(u.prompt_tokens || 0) + Number(u.completion_tokens || 0);
+  const cost = Number(u.est_cost_usd || 0).toFixed(5);
+  const srcs = sources.map(s => `
+    <article class="src ${cited.includes(s.id) ? 'cited' : ''}" id="src-${esc(s.id)}">
+      <header><strong>[${esc(s.id)}] ${esc(s.title)}</strong>
+        <span class="meta">${esc(s.section)}, chunk ${Number(s.position || 0) + 1} · relevance ${Number(s.rerank_score || 0).toFixed(2)}</span></header>
+      <p>${esc(s.text)}</p>
+      <button class="more" type="button">Show full passage</button>
+    </article>`).join('');
+  $('#result').innerHTML = `
+    <div class="answer ${r.no_answer ? 'none' : ''}">${renderAnswer(r.answer)}</div>
+    <div class="stats">${parts}<span>Tokens <b>${tokens.toLocaleString()}</b></span><span>Est. cost <b>$${cost}</b></span></div>
+    <div class="sources"><h3>${sources.length ? (r.no_answer ? 'Closest passages (not used)' : 'Sources') : 'No passages found'}</h3>${srcs}</div>`;
+}
+
+$('#result').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (chip) {
+    const el = document.getElementById('src-' + chip.dataset.id);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash', 'open'); setTimeout(() => el.classList.remove('flash'), 1400); }
+  }
+  const more = e.target.closest('.more');
+  if (more) { const a = more.closest('.src'); a.classList.toggle('open'); more.textContent = a.classList.contains('open') ? 'Show less' : 'Show full passage'; }
+});
+
+async function ask() {
+  const question = $('#q').value.trim();
+  if (question.length < 3) { say('Type a question first.', 'err'); return; }
+  say(''); busy($('#go'), true, 'Asking');
+  try {
+    render(await api('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, namespace: ns }) }));
+  } catch (e) { say(e.message, 'err'); }
+  busy($('#go'), false);
+}
+$('#go').onclick = ask;
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ask(); });
+
+(async () => {
+  try {
+    const h = await api('/api/health');
+    $('#foot').textContent = h.configured
+      ? `Embeddings: ${h.embed_model}. Reranker: ${h.rerank_model}. LLM: ${h.llm_model}. Chunks: ${h.chunk_size} tokens, ${h.chunk_overlap} overlap. Ctrl+Enter sends a question.`
+      : 'Server setup incomplete. Missing: ' + (h.missing || []).join(', ');
+    if (h.configured) refreshDocs();
+  } catch (e) { say(e.message, 'err'); }
+})();
+</script>
+</body>
+</html>
