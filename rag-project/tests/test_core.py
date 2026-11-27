@@ -1,7 +1,10 @@
 import numpy as np
+import httpx
+import pytest
 
 from app.chunking import chunk_text, count_tokens
 from app.rag import mmr
+from app import providers
 
 DOC = "# Title\n\n" + "\n\n".join(
     f"## Section {i}\n\n" + " ".join(f"Sentence {i}-{j} talks about topic {i}." for j in range(25))
@@ -46,3 +49,14 @@ def test_mmr_prefers_diverse_results():
 
 def test_count_tokens_positive():
     assert count_tokens("hello world") > 0
+
+
+def test_provider_401_reports_rejected_api_key(monkeypatch):
+    response = httpx.Response(
+        401,
+        request=httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions"),
+    )
+    monkeypatch.setattr(providers._http, "post", lambda *args, **kwargs: response)
+
+    with pytest.raises(providers.ProviderError, match="rejected its API key"):
+        providers._post("Groq", "https://api.groq.com/openai/v1/chat/completions", "bad-key", {})

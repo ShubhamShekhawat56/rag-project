@@ -28,6 +28,11 @@ def _post(name: str, url: str, key: str, payload: dict):
 
     if response.status_code == 429:
         raise ProviderError(f"{name} rate limit reached. Wait a few seconds and retry.")
+    if response.status_code == 401:
+        log.error("%s rejected its API key (HTTP 401)", name)
+        raise ProviderError(
+            f"{name} rejected its API key. Check the key in your deployment environment and redeploy."
+        )
     if response.status_code >= 400:
         log.error("%s HTTP %s: %s", name, response.status_code, response.text[:300])
         raise ProviderError(f"{name} returned an error ({response.status_code}).")
